@@ -1,0 +1,213 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LUCKY SPIN</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;min-height:100vh;padding:20px;
+ display:flex;justify-content:center;align-items:center;
+ background:radial-gradient(circle at top,#29204e,#080812 75%);
+ color:white;font-family:Arial,sans-serif
+}
+.app{
+ width:100%;max-width:450px;text-align:center;
+ background:#ffffff0c;border:1px solid #ffffff20;
+ padding:24px;border-radius:24px;
+}
+h1{color:#ffd34e;margin:0;font-size:30px}
+.sub{color:#aaa;margin:8px 0 25px;font-size:13px}
+.wheel{
+ width:min(85vw,340px);aspect-ratio:1;
+ margin:auto;position:relative
+}
+canvas{width:100%;height:100%;display:block}
+.pointer{
+ position:absolute;top:-5px;left:50%;
+ transform:translateX(-50%);
+ border-left:16px solid transparent;
+ border-right:16px solid transparent;
+ border-top:35px solid white;z-index:2
+}
+textarea{
+ width:100%;height:130px;margin-top:24px;
+ padding:14px;background:#111124;
+ border:1px solid #49436b;border-radius:12px;
+ color:white;font-size:15px;resize:vertical;outline:none
+}
+button{
+ width:100%;padding:16px;margin-top:14px;
+ border:0;border-radius:12px;
+ background:linear-gradient(135deg,#ffe16a,#ff9824);
+ color:#271500;font-size:17px;font-weight:900;
+ cursor:pointer
+}
+button:disabled{opacity:.5}
+.result{
+ display:none;margin-top:20px;padding:18px;
+ background:#111124;border:1px solid #ffd54a;
+ border-radius:14px
+}
+.result small{color:#aaa}
+.winner{
+ color:#ffd54a;font-size:26px;font-weight:bold;
+ margin-top:10px;overflow-wrap:anywhere
+}
+</style>
+</head>
+<body>
+<div class="app">
+ <h1>🎯 LUCKY SPIN</h1>
+ <div class="sub">VÒNG QUAY MAY MẮN</div>
+
+ <div class="wheel">
+  <div class="pointer"></div>
+  <canvas id="canvas"></canvas>
+ </div>
+
+ <textarea id="names">NGƯỜI CHIẾN THẮNG
+Nguyễn Văn A
+Nguyễn Văn B
+Nguyễn Văn C
+Nguyễn Văn D
+Nguyễn Văn E</textarea>
+
+ <button id="spin">🎰 QUAY NGAY</button>
+
+ <div class="result" id="result">
+  <small>🏆 NGƯỜI CHIẾN THẮNG</small>
+  <div class="winner" id="winner"></div>
+ </div>
+</div>
+
+<script>
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+const input=document.getElementById("names");
+const button=document.getElementById("spin");
+
+const colors=["#ff4757","#3742fa","#ffa502",
+"#2ed573","#9b59b6","#e84393","#0984e3",
+"#e17055","#16a085"];
+
+let items=[],rotation=0,busy=false;
+
+function getItems(){
+ return input.value.split("\n").map(x=>x.trim()).filter(Boolean);
+}
+
+function draw(){
+ const size=340;
+ const dpr=window.devicePixelRatio||1;
+ canvas.width=size*dpr;
+ canvas.height=size*dpr;
+ canvas.style.width="100%";
+ canvas.style.height="100%";
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+
+ items=getItems();
+ const c=size/2,r=size/2-7;
+ ctx.clearRect(0,0,size,size);
+
+ if(!items.length)return;
+
+ const slice=2*Math.PI/items.length;
+
+ items.forEach((name,i)=>{
+  const start=-Math.PI/2+rotation+i*slice;
+  const end=start+slice;
+
+  ctx.beginPath();
+  ctx.moveTo(c,c);
+  ctx.arc(c,c,r,start,end);
+  ctx.closePath();
+  ctx.fillStyle=colors[i%colors.length];
+  ctx.fill();
+  ctx.strokeStyle="white";
+  ctx.lineWidth=2;
+  ctx.stroke();
+
+  ctx.save();
+  ctx.translate(c,c);
+  ctx.rotate(start+slice/2);
+  ctx.textAlign="right";
+  ctx.textBaseline="middle";
+  ctx.fillStyle="white";
+  ctx.font=`bold ${Math.max(9,Math.min(16,180/items.length))}px Arial`;
+  let label=name.length>17?name.slice(0,15)+"...":name;
+  ctx.fillText(label,r-17,0);
+  ctx.restore();
+ });
+
+ ctx.beginPath();
+ ctx.arc(c,c,21,0,Math.PI*2);
+ ctx.fillStyle="white";
+ ctx.fill();
+ ctx.beginPath();
+ ctx.arc(c,c,14,0,Math.PI*2);
+ ctx.fillStyle="#ffae00";
+ ctx.fill();
+}
+
+input.addEventListener("input",()=>{
+ if(!busy){
+  draw();
+  document.getElementById("result").style.display="none";
+ }
+});
+
+button.addEventListener("click",()=>{
+ if(busy)return;
+ items=getItems();
+
+ if(!items.length){
+  alert("Hãy nhập ít nhất một tên!");
+  return;
+ }
+
+ busy=true;
+ button.disabled=true;
+ document.getElementById("result").style.display="none";
+
+ const slice=2*Math.PI/items.length;
+ const current=((rotation%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+
+ // Góc để mục đầu tiên nằm chính giữa kim.
+ const desired=(2*Math.PI-slice/2)%(2*Math.PI);
+ const delta=((desired-current)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
+
+ const start=rotation;
+ const distance=8*2*Math.PI+delta;
+ const duration=5500;
+ const startTime=performance.now();
+
+ function animate(now){
+  const t=Math.min((now-startTime)/duration,1);
+  const ease=1-Math.pow(1-t,4);
+
+  rotation=start+distance*ease;
+  draw();
+
+  if(t<1){
+   requestAnimationFrame(animate);
+  }else{
+   rotation=start+distance;
+   draw();
+
+   document.getElementById("winner").textContent=items[0];
+   document.getElementById("result").style.display="block";
+
+   busy=false;
+   button.disabled=false;
+  }
+ }
+ requestAnimationFrame(animate);
+});
+
+draw();
+</script>
+</body>
+</html>
